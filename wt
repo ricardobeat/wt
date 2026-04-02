@@ -1,0 +1,123 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+MAIN=$(dirname $(realpath $(git rev-parse --git-common-dir)))
+
+enter_shell() {
+  local wt_zdir="$HOME/.cache/wt-shell"
+  mkdir -p "$wt_zdir"
+  cat > "$wt_zdir/.zshrc" <<'ZSHRC'
+ZDOTDIR=$HOME
+[[ -f ~/.zshrc ]] && source ~/.zshrc
+PROMPT="[wt] $PROMPT"
+ZSHRC
+  ZDOTDIR="$wt_zdir" exec "$SHELL"
+}
+
+setup() {
+  WORKTREE=$(pwd)
+
+  # Clone all untracked files and directories from the main worktree.
+  # --others lists untracked files; --directory collapses untracked dirs
+  # (like node_modules/) into a single entry so we can clone them whole.
+  git -C "$MAIN" ls-files --others --directory | while read f; do
+    src="$MAIN/$f"
+    dest="$WORKTREE/$f"
+
+    if [[ ! $f =~ ".env" ]]; then
+      continue
+    fi
+
+    if [[ -e "$dest" ]]; then
+      echo "skip: $f" >&2
+      continue
+    fi
+
+    mkdir -p "$(dirname "$dest")"
+    echo "copy: $f" >&2
+    /bin/cp -c -R "$src" "$dest"
+  done
+}
+
+create() {
+  local NAME=$1
+  local DEST="$MAIN/.worktrees/$NAME"
+  if [[ ! -d "$DEST" ]]; then
+    git worktree add "$DEST" -b "$NAME" >&2 2>&1 ||
+      git worktree add "$DEST" "$NAME" >&2 2>&1 ||
+      { echo "failed to create worktree for $NAME" >&2; exit 1; }
+  fi
+  cd "$DEST"
+  setup
+  enter_shell
+}
+
+list_worktrees() {
+  local BASE="$MAIN/.worktrees/"
+  git worktree list --porcelain | while read line; do
+    case $line in
+      worktree\ $BASE*) echo "${line#worktree $BASE}" ;;
+    esac
+  done | while read name; do
+    local branch_ref="refs/heads/$name"
+    local ts
+    ts=$(git log -1 --format=%ct "$branch_ref" 2>/dev/null) || ts=0
+    echo "$ts $name"
+  done | sort -rn | cut -d' ' -f2-
+}
+
+remove() {
+  DEST=$(pwd)
+  if [[ ! -d "$DEST" ]]; then
+    echo "worktree not found: $1" >&2
+    exit 1
+  fi
+  git worktree remove "$DEST"
+  exit
+}
+
+select_worktree() {
+  if command -v fzf &>/dev/null; then
+    local SELECTED
+    SELECTED=$(list_worktrees | fzf --height=~20) || exit 0
+    create "$SELECTED"
+  else
+    echo "available worktrees:" >&2
+    list_worktrees || echo "  (none)" >&2
+  fi
+}
+
+rename() {
+  local NEW_NAME=${1:?usage: wt rename <new-name>}
+  local CURRENT_BRANCH
+  CURRENT_BRANCH=$(git symbolic-ref --short HEAD)
+
+  # Fail if the branch is already pushed to the remote
+  if git rev-parse --verify "refs/remotes/origin/$CURRENT_BRANCH" &>/dev/null; then
+    echo "error: branch '$CURRENT_BRANCH' is already pushed to origin, refusing to rename" >&2
+    exit 1
+  fi
+
+  local OLD_DIR
+  OLD_DIR=$(pwd)
+  if [[ "$OLD_DIR" != "$MAIN/.worktrees/"* ]]; then
+    echo "error: not inside a worktree" >&2
+    exit 1
+  fi
+
+  git branch -m "$NEW_NAME"
+  local NEW_DIR="$MAIN/.worktrees/$NEW_NAME"
+  git worktree move "$OLD_DIR" "$NEW_DIR"
+  cd "$NEW_DIR"
+  enter_shell
+}
+
+case ${1:-} in
+  setup)       setup ;;
+  rename)      rename "${2:-}" ;;
+  remove|end)  remove ;;
+  exit)        exit;;
+  "")          select_worktree ;;
+  *)           create "$1" ;;
+esac
