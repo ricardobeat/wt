@@ -43,7 +43,15 @@ setup() {
 create() {
   local NAME=$1
   local DEST="$MAIN/.worktrees/$NAME"
-  if [[ ! -d "$DEST" ]]; then
+  local EXISTING
+  EXISTING=$(git -C "$MAIN" worktree list --porcelain | awk -v ref="refs/heads/$NAME" '
+    /^worktree / { wt=substr($0, 10) }
+    /^branch / && $2==ref { print wt; exit }
+  ')
+  if [[ -n "$EXISTING" ]]; then
+    DEST="$EXISTING"
+    [[ "$DEST" != "$MAIN/.worktrees/"* ]] && echo "note: jumping to existing worktree at $DEST" >&2
+  elif [[ ! -d "$DEST" ]]; then
     git worktree add "$DEST" -b "$NAME" >&2 2>&1 ||
       git worktree add "$DEST" "$NAME" >&2 2>&1 ||
       { echo "failed to create worktree for $NAME" >&2; exit 1; }
