@@ -3,6 +3,28 @@
 set -euo pipefail
 
 MAIN=$(dirname $(realpath $(git rev-parse --git-common-dir)))
+CONFIG_SLUG=$(echo "$MAIN" | sed 's|^/||; s|/|-|g')
+CONFIG_FILE="$HOME/.config/wt/$CONFIG_SLUG/wt.toml"
+
+config_set() {
+  local key=${1:?usage: wt set <key> <value>}
+  local value=${2:?usage: wt set <key> <value>}
+  mkdir -p "$(dirname "$CONFIG_FILE")"
+  if [[ -f "$CONFIG_FILE" ]] && grep -q "^${key}[[:space:]]*=" "$CONFIG_FILE"; then
+    sed -i '' "s|^${key}[[:space:]]*=.*|${key} = \"${value}\"|" "$CONFIG_FILE"
+  else
+    echo "${key} = \"${value}\"" >> "$CONFIG_FILE"
+  fi
+}
+
+run_prepare() {
+  [[ -f "$CONFIG_FILE" ]] || return 0
+  local cmd
+  cmd=$(sed -n 's/^prepare[[:space:]]*=[[:space:]]*"\(.*\)"/\1/p' "$CONFIG_FILE")
+  [[ -z "$cmd" ]] && return 0
+  echo "prepare: $cmd" >&2
+  eval "$cmd"
+}
 
 enter_shell() {
   local wt_zdir="$HOME/.cache/wt-shell"
@@ -48,6 +70,7 @@ create() {
     /^worktree / { wt=substr($0, 10) }
     /^branch / && $2==ref { print wt; exit }
   ')
+  local NEW=0
   if [[ -n "$EXISTING" ]]; then
     DEST="$EXISTING"
     [[ "$DEST" != "$MAIN/.worktrees/"* ]] && echo "note: jumping to existing worktree at $DEST" >&2
@@ -55,9 +78,11 @@ create() {
     git worktree add "$DEST" -b "$NAME" >&2 2>&1 ||
       git worktree add "$DEST" "$NAME" >&2 2>&1 ||
       { echo "failed to create worktree for $NAME" >&2; exit 1; }
+    NEW=1
   fi
   cd "$DEST"
   setup
+  [[ $NEW -eq 1 ]] && run_prepare </dev/tty
   enter_shell
 }
 
@@ -123,6 +148,7 @@ rename() {
 
 case ${1:-} in
   setup)       setup ;;
+  set)         config_set "${2:-}" "${3:-}" ;;
   rename)      rename "${2:-}" ;;
   remove|end)  remove ;;
   exit)        exit;;
