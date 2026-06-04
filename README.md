@@ -7,6 +7,8 @@ Worktrees go under `<repo>/.worktrees/<name>`. The listing also shows
 worktrees created by Claude (`<repo>/.claude/worktrees`) and Codex
 (`~/.codex/worktrees`), tagged so you can tell which is which.
 
+![wt demo](https://vhs.charm.sh/vhs-4kC49ltnujtlwmgwJoOpP3.gif)
+
 ## install
 
 ```sh
