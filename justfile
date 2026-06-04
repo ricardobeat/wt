@@ -1,6 +1,9 @@
 test:
     bash test/run.sh
 
+demo:
+    vhs demo.tape
+
 link:
     #!/usr/bin/env bash
     set -euo pipefail
