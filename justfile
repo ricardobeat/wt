@@ -1,3 +1,6 @@
+test:
+    bash test/run.sh
+
 link:
     #!/usr/bin/env bash
     set -euo pipefail
