@@ -6,6 +6,23 @@ MAIN=$(dirname $(realpath $(git rev-parse --git-common-dir)))
 CONFIG_SLUG=$(echo "$MAIN" | sed 's|^/||; s|/|-|g')
 CONFIG_FILE="$HOME/.config/wt/$CONFIG_SLUG/wt.toml"
 
+settings() {
+  mkdir -p "$(dirname "$CONFIG_FILE")"
+  if [[ ! -f "$CONFIG_FILE" ]]; then
+    cat > "$CONFIG_FILE" <<'TOML'
+# wt settings for this repo
+
+# command run once after a new worktree is created
+# prepare = "pnpm install"
+
+# extra untracked paths to copy into new worktrees (space-separated globs)
+# copy = "node_modules .venv"
+TOML
+  fi
+  # unquoted so EDITOR="code -w" and friends split into command + args
+  ${VISUAL:-${EDITOR:-vi}} "$CONFIG_FILE"
+}
+
 config_set() {
   local key=${1:?usage: wt set <key> <value>}
   local value=${2:?usage: wt set <key> <value>}
@@ -78,6 +95,8 @@ setup() {
     echo "copy: $f" >&2
     /bin/cp -c -R "$src" "$dest"
   done
+
+  run_prepare
 }
 
 create() {
@@ -99,8 +118,7 @@ create() {
     NEW=1
   fi
   cd "$DEST"
-  setup
-  [[ $NEW -eq 1 ]] && run_prepare </dev/tty
+  [[ $NEW -eq 1 ]] && setup </dev/tty
   enter_shell
 }
 
@@ -209,6 +227,7 @@ rename() {
 case ${1:-} in
   setup)       setup ;;
   set)         config_set "${2:-}" "${3:-}" ;;
+  settings)    settings ;;
   rename)      rename "${2:-}" ;;
   remove|end)  remove ;;
   exit)        exit;;

@@ -22,6 +22,7 @@ Symlinks `./wt` into `~/bin` or `/usr/local/bin`. Needs `bash` and `git`.
 wt feature-x          # create branch feature-x + its worktree, cd in
 wt some-branch        # branch already exists? cd into its worktree
 wt                    # pick an existing worktree with fzf
+wt settings           # edit this repo's config in $EDITOR
 wt rename feature-y   # rename current worktree's branch and dir
 wt remove             # remove current worktree (alias: wt end)
 wt exit               # leave the worktree shell
@@ -35,8 +36,8 @@ prompt. `exit` gets you back.
 ## copying untracked files
 
 A fresh worktree has none of your untracked files. `setup` clones them from
-the main worktree. It runs automatically when you create a worktree, or by
-hand:
+the main worktree. It runs once when you create a worktree. Run it by hand to
+re-copy and re-run the prepare hook (below):
 
 ```sh
 wt setup
@@ -61,7 +62,7 @@ the worktree are never overwritten.
 
 ## prepare hook
 
-Run a command once after a new worktree is created:
+Run a command after a new worktree is created (and again on `wt setup`):
 
 ```sh
 wt set prepare "pnpm install"
