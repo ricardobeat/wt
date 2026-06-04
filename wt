@@ -4,7 +4,7 @@ set -euo pipefail
 
 MAIN=$(dirname $(realpath $(git rev-parse --git-common-dir)))
 CONFIG_SLUG=$(echo "$MAIN" | sed 's|^/||; s|/|-|g')
-CONFIG_FILE="$HOME/.config/wt/$CONFIG_SLUG/wt.toml"
+CONFIG_FILE="${XDG_CONFIG_HOME:-$HOME/.config}/wt/$CONFIG_SLUG/wt.toml"
 
 settings() {
   mkdir -p "$(dirname "$CONFIG_FILE")"
@@ -28,7 +28,10 @@ config_set() {
   local value=${2:?usage: wt set <key> <value>}
   mkdir -p "$(dirname "$CONFIG_FILE")"
   if [[ -f "$CONFIG_FILE" ]] && grep -q "^${key}[[:space:]]*=" "$CONFIG_FILE"; then
-    sed -i '' "s|^${key}[[:space:]]*=.*|${key} = \"${value}\"|" "$CONFIG_FILE"
+    # portable in-place edit (BSD and GNU sed disagree on -i)
+    local tmp
+    tmp=$(mktemp)
+    sed "s|^${key}[[:space:]]*=.*|${key} = \"${value}\"|" "$CONFIG_FILE" > "$tmp" && mv "$tmp" "$CONFIG_FILE"
   else
     echo "${key} = \"${value}\"" >> "$CONFIG_FILE"
   fi
@@ -93,7 +96,10 @@ setup() {
 
     mkdir -p "$(dirname "$dest")"
     echo "copy: $f" >&2
-    /bin/cp -c -R "$src" "$dest"
+    # prefer copy-on-write where the filesystem supports it, else plain copy
+    cp --reflink=auto -R "$src" "$dest" 2>/dev/null \
+      || cp -cR "$src" "$dest" 2>/dev/null \
+      || cp -R "$src" "$dest"
   done
 
   run_prepare

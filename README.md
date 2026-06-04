@@ -10,11 +10,10 @@ worktrees created by Claude (`<repo>/.claude/worktrees`) and Codex
 ## install
 
 ```sh
-just link
+git clone https://github.com/ricardobeat/wt
+brew install just fzf
+cd wt && just link
 ```
-
-Symlinks `./wt` into `~/bin` or `/usr/local/bin`. Needs `bash` and `git`.
-`fzf` is optional and enables the picker.
 
 ## usage
 
@@ -35,13 +34,8 @@ prompt. `exit` gets you back.
 
 ## copying untracked files
 
-A fresh worktree has none of your untracked files. `setup` clones them from
-the main worktree. It runs once when you create a worktree. Run it by hand to
-re-copy and re-run the prepare hook (below):
-
-```sh
-wt setup
-```
+When a new worktree is created with `wt [name]`, untracked files can be copied
+from the main worktree. Re-run at any time with `wt setup`.
 
 By default it copies `.env*`. Extend that list per-repo with a space-separated
 `copy` entry:
@@ -68,7 +62,16 @@ Run a command after a new worktree is created (and again on `wt setup`):
 wt set prepare "pnpm install"
 ```
 
-Config is per-repo at `~/.config/wt/<repo-slug>/wt.toml`.
+Config is per-repo at `$XDG_CONFIG_HOME/wt/<repo-slug>/wt.toml` (defaults to
+`~/.config`).
+
+## copy-on-write
+
+Files use CoW when available - so you can copy your entire `node_modules` for example,
+without using extra disk space.
+
+I still recommend using [pnpm](https://pnpm.io) (which uses symlinks) as it's a cleaner
+and even faster setup.
 
 ## listing
 
