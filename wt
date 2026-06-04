@@ -68,7 +68,7 @@ create() {
   local EXISTING
   EXISTING=$(git -C "$MAIN" worktree list --porcelain | awk -v ref="refs/heads/$NAME" '
     /^worktree / { wt=substr($0, 10) }
-    /^branch / && $2==ref { print wt; exit }
+    /^branch / && $2==ref && !found { print wt; found=1 }
   ')
   local NEW=0
   if [[ -n "$EXISTING" ]]; then
@@ -86,18 +86,59 @@ create() {
   enter_shell
 }
 
+# Classify a worktree by the directory tree it lives under. The path is the
+# ground-truth signal: each assistant creates worktrees beneath its own fixed
+# root (branch names are user-mutable and unreliable). Add new assistants here.
+# Echoes "<base>\t<label>"; an empty label means untagged (our own worktrees, or
+# anything we don't recognise) — still listed and still cd-able by branch. Base
+# (always non-empty) goes first so the optional label can't get IFS-collapsed.
+detect_tool() {
+  case $1 in
+    "$MAIN/.claude/worktrees/"*) printf '%s\t%s' "$MAIN/.claude/worktrees/" "claude" ;;
+    "$HOME/.codex/worktrees/"*)  printf '%s\t%s' "$HOME/.codex/worktrees/"  "codex" ;;
+    *)                           printf '%s\t%s' "$MAIN/.worktrees/"        "" ;;
+  esac
+}
+
 list_worktrees() {
-  local BASE="$MAIN/.worktrees/"
-  git worktree list --porcelain | while read line; do
-    case $line in
-      worktree\ $BASE*) echo "${line#worktree $BASE}" ;;
+  local MAIN_NAME
+  MAIN_NAME=$(basename "$MAIN")
+
+  local C_CLAUDE=$'\033[38;5;205m'
+  local C_CODEX=$'\033[36m'
+  local C_BRANCH=$'\033[32m'
+  local C_DIM=$'\033[2m'
+  local C_RESET=$'\033[0m'
+
+  git -C "$MAIN" worktree list --porcelain | awk '
+    /^worktree / { wt = substr($0, 10) }
+    /^branch / {
+      name = $2
+      sub(/^refs\/heads\//, "", name)
+      print wt "\t" $2 "\t" name
+    }
+  ' | while IFS=$'\t' read -r wt ref branch; do
+    local tool base dir
+    IFS=$'\t' read -r base tool <<<"$(detect_tool "$wt")"
+    dir="${wt#"$base"}"
+    case $tool in
+      "")
+        display=$(printf '%-10s %s%s%s' "" "$C_BRANCH" "$branch" "$C_RESET")
+        ;;
+      claude)
+        display=$(printf '%s%-10s%s %s%s%s' "$C_CLAUDE" "[claude]" "$C_RESET" "$C_BRANCH" "$branch" "$C_RESET")
+        if [[ "$dir" != "$branch" && "$branch" != *"/$dir" ]]; then
+          display="$display ${C_DIM}${dir}${C_RESET}"
+        fi
+        ;;
+      codex)
+        dir="${dir%/$MAIN_NAME}"
+        display=$(printf '%s%-10s%s %s%s%s %s%s%s' "$C_CODEX" "[codex]" "$C_RESET" "$C_BRANCH" "$branch" "$C_RESET" "$C_DIM" "$dir" "$C_RESET")
+        ;;
     esac
-  done | while read name; do
-    local branch_ref="refs/heads/$name"
-    local ts
-    ts=$(git log -1 --format=%ct "$branch_ref" 2>/dev/null) || ts=0
-    echo "$ts $name"
-  done | sort -rn | cut -d' ' -f2-
+    ts=$(git -C "$MAIN" log -1 --format=%ct "$ref" 2>/dev/null) || ts=0
+    printf '%s\t%s\t%s\n' "$ts" "$branch" "$display"
+  done | sort -rn | cut -f2-
 }
 
 remove() {
@@ -112,12 +153,13 @@ remove() {
 
 select_worktree() {
   if command -v fzf &>/dev/null; then
-    local SELECTED
-    SELECTED=$(list_worktrees | fzf --height=~20) || exit 0
-    create "$SELECTED"
+    local SELECTED BRANCH
+    SELECTED=$(list_worktrees | fzf --ansi --delimiter=$'\t' --with-nth=2 --height=~20) || exit 0
+    BRANCH=$(printf '%s' "$SELECTED" | cut -f1)
+    create "$BRANCH"
   else
     echo "available worktrees:" >&2
-    list_worktrees || echo "  (none)" >&2
+    list_worktrees | cut -f2- || echo "  (none)" >&2
   fi
 }
 
