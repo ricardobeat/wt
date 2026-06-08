@@ -17,6 +17,10 @@ settings() {
 
 # extra untracked paths to copy into new worktrees (space-separated globs)
 # copy = "node_modules .venv"
+
+# directory where new worktrees are created (default: <repo>/.worktrees)
+# supports ~ expansion; the branch name is appended automatically
+# worktrees_dir = "~/worktrees/myrepo"
 TOML
   fi
   # unquoted so EDITOR="code -w" and friends split into command + args
@@ -34,6 +38,19 @@ config_set() {
     sed "s|^${key}[[:space:]]*=.*|${key} = \"${value}\"|" "$CONFIG_FILE" > "$tmp" && mv "$tmp" "$CONFIG_FILE"
   else
     echo "${key} = \"${value}\"" >> "$CONFIG_FILE"
+  fi
+}
+
+worktrees_dir() {
+  local dir
+  if [[ -f "$CONFIG_FILE" ]]; then
+    dir=$(sed -n 's/^worktrees_dir[[:space:]]*=[[:space:]]*"\(.*\)"/\1/p' "$CONFIG_FILE")
+  fi
+  if [[ -n "${dir:-}" ]]; then
+    # expand leading ~
+    printf '%s' "${dir/#\~/$HOME}"
+  else
+    printf '%s' "$MAIN/.worktrees"
   fi
 }
 
@@ -107,7 +124,9 @@ setup() {
 
 create() {
   local NAME=$1
-  local DEST="$MAIN/.worktrees/$NAME"
+  local WT_DIR
+  WT_DIR=$(worktrees_dir)
+  local DEST="$WT_DIR/$NAME"
   local EXISTING
   EXISTING=$(git -C "$MAIN" worktree list --porcelain | awk -v ref="refs/heads/$NAME" '
     /^worktree / { wt=substr($0, 10) }
@@ -116,7 +135,7 @@ create() {
   local NEW=0
   if [[ -n "$EXISTING" ]]; then
     DEST="$EXISTING"
-    [[ "$DEST" != "$MAIN/.worktrees/"* ]] && echo "note: jumping to existing worktree at $DEST" >&2
+    [[ "$DEST" != "$WT_DIR/"* ]] && echo "note: jumping to existing worktree at $DEST" >&2
   elif [[ ! -d "$DEST" ]]; then
     git worktree add "$DEST" -b "$NAME" >&2 2>&1 ||
       git worktree add "$DEST" "$NAME" >&2 2>&1 ||
@@ -138,7 +157,7 @@ detect_tool() {
   case $1 in
     "$MAIN/.claude/worktrees/"*) printf '%s\t%s' "$MAIN/.claude/worktrees/" "claude" ;;
     "$HOME/.codex/worktrees/"*)  printf '%s\t%s' "$HOME/.codex/worktrees/"  "codex" ;;
-    *)                           printf '%s\t%s' "$MAIN/.worktrees/"        "" ;;
+    *)                           printf '%s\t%s' "$(worktrees_dir)/"        "" ;;
   esac
 }
 
@@ -216,15 +235,16 @@ rename() {
     exit 1
   fi
 
-  local OLD_DIR
+  local OLD_DIR WT_DIR
   OLD_DIR=$(pwd)
-  if [[ "$OLD_DIR" != "$MAIN/.worktrees/"* ]]; then
+  WT_DIR=$(worktrees_dir)
+  if [[ "$OLD_DIR" != "$WT_DIR/"* ]]; then
     echo "error: not inside a worktree" >&2
     exit 1
   fi
 
   git branch -m "$NEW_NAME"
-  local NEW_DIR="$MAIN/.worktrees/$NEW_NAME"
+  local NEW_DIR="$WT_DIR/$NEW_NAME"
   git worktree move "$OLD_DIR" "$NEW_DIR"
   cd "$NEW_DIR"
   enter_shell
@@ -240,7 +260,7 @@ usage: wt [command] [args]
   wt rename <name>      rename the current branch and worktree directory
   wt setup              copy tracked files and run prepare command
   wt settings           open the per-repo config file in $EDITOR
-  wt set <key> <value>  set a config value (prepare, copy)
+  wt set <key> <value>  set a config value (prepare, copy, worktrees_dir)
   wt --help | help      show this message
 EOF
 }
