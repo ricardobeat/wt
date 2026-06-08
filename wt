@@ -230,13 +230,29 @@ rename() {
   enter_shell
 }
 
+usage() {
+  cat <<'EOF'
+usage: wt [command] [args]
+
+  wt                    interactive worktree picker (requires fzf)
+  wt <branch>           switch to or create a worktree for <branch>
+  wt remove | end       remove the current worktree
+  wt rename <name>      rename the current branch and worktree directory
+  wt setup              copy tracked files and run prepare command
+  wt settings           open the per-repo config file in $EDITOR
+  wt set <key> <value>  set a config value (prepare, copy)
+  wt --help | help      show this message
+EOF
+}
+
 case ${1:-} in
-  setup)       setup ;;
-  set)         config_set "${2:-}" "${3:-}" ;;
-  settings)    settings ;;
-  rename)      rename "${2:-}" ;;
-  remove|end)  remove ;;
-  exit)        exit;;
-  "")          select_worktree ;;
-  *)           create "$1" ;;
+  setup)          setup ;;
+  set)            config_set "${2:-}" "${3:-}" ;;
+  settings)       settings ;;
+  rename)         rename "${2:-}" ;;
+  remove|end)     remove ;;
+  exit)           exit ;;
+  --help|help)    usage ;;
+  "")             select_worktree ;;
+  *)              create "$1" ;;
 esac
