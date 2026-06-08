@@ -103,6 +103,3 @@ an unknown location is listed without a tag and stays selectable.
 ```sh
 just test
 ```
-
-Plain bash, no bats or shellcheck. Covers classification, listing, branch
-resolution, and config.
