@@ -3,17 +3,16 @@
 A wrapper around `git worktree`. Make a worktree, jump into a shell in it, and
 get your untracked `.env` files copied over from the main checkout.
 
-Worktrees go under `<repo>/.worktrees/<name>`. The listing also shows
-worktrees created by Claude (`<repo>/.claude/worktrees`) and Codex
-(`~/.codex/worktrees`), tagged so you can tell which is which.
+Automatically picks up existing **Claude** and **Codex** worktrees, so you can jump
+in and pick up the work at any time.
 
 ![wt demo](https://vhs.charm.sh/vhs-4kC49ltnujtlwmgwJoOpP3.gif)
 
 ## install
 
 ```sh
-git clone https://github.com/ricardobeat/wt
 brew install just fzf
+git clone https://github.com/ricardobeat/wt
 cd wt && just link
 ```
 
@@ -55,6 +54,17 @@ wt set copy "node_modules"
 
 Patterns are globs matched against the path or its basename. Existing files in
 the worktree are never overwritten.
+
+## worktree location
+
+By default worktrees go in `<repo>/.worktrees/<name>`. To use a different
+location — for example a shared folder in your home directory:
+
+```sh
+wt set worktrees_dir "~/worktrees/myrepo"
+```
+
+The branch name is always appended. Tilde (`~`) is expanded to `$HOME`.
 
 ## prepare hook
 
