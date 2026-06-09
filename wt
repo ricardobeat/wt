@@ -267,7 +267,7 @@ list_worktrees() {
 
   local C_CLAUDE=$'\033[38;5;205m'
   local C_CODEX=$'\033[36m'
-  local C_BRANCH=$'\033[32m'
+  local C_NAME=$'\033[32m'
   local C_DIM=$'\033[2m'
   local C_RESET=$'\033[0m'
 
@@ -279,24 +279,22 @@ list_worktrees() {
       print wt "\t" $2 "\t" name
     }
   ' | while IFS=$'\t' read -r wt ref branch; do
-    local tool base dir
+    local tool base name label color
     IFS=$'\t' read -r base tool <<<"$(detect_tool "$wt")"
-    dir="${wt#"$base"}"
+    name="${wt#"$base"}"                          # path relative to its tool's root
+    [[ "$name" == "$wt" ]] && name="${wt##*/}"    # outside any known root: basename
     case $tool in
-      "")
-        display=$(printf '%-10s %s%s%s' "" "$C_BRANCH" "$branch" "$C_RESET")
-        ;;
-      claude)
-        display=$(printf '%s%-10s%s %s%s%s' "$C_CLAUDE" "[claude]" "$C_RESET" "$C_BRANCH" "$branch" "$C_RESET")
-        if [[ "$dir" != "$branch" && "$branch" != *"/$dir" ]]; then
-          display="$display ${C_DIM}${dir}${C_RESET}"
-        fi
-        ;;
-      codex)
-        dir="${dir%/$MAIN_NAME}"
-        display=$(printf '%s%-10s%s %s%s%s %s%s%s' "$C_CODEX" "[codex]" "$C_RESET" "$C_BRANCH" "$branch" "$C_RESET" "$C_DIM" "$dir" "$C_RESET")
-        ;;
+      claude) label="[claude]"; color="$C_CLAUDE" ;;
+      codex)  label="[codex]";  color="$C_CODEX"; name="${name%/$MAIN_NAME}" ;;
+      "")     label="";         color="" ;;
     esac
+    # Lead with the worktree name; show the branch on the right only when it adds
+    # information (name != branch, and name isn't just the branch's last segment).
+    # Keeps a worktree parked on e.g. `main` from hiding behind its branch name.
+    display=$(printf '%s%-10s%s %s%-32s%s' "$color" "$label" "$C_RESET" "$C_NAME" "$name" "$C_RESET")
+    if [[ "$name" != "$branch" && "$branch" != *"/$name" ]]; then
+      display="$display ${C_DIM}${branch}${C_RESET}"
+    fi
     ts=$(git -C "$MAIN" log -1 --format=%ct "$ref" 2>/dev/null) || ts=0
     printf '%s\t%s\t%s\n' "$ts" "$branch" "$display"
   done | sort -rn | cut -f2-
