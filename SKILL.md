@@ -1,4 +1,7 @@
-# wt
+---
+name: wt
+description: wt is a tool to manage git worktrees for agentic workflows
+---
 
 Git worktree manager.
 
