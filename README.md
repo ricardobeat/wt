@@ -74,6 +74,15 @@ Run a command after a new worktree is created (and again on `wt setup`):
 wt set prepare "pnpm install"
 ```
 
+Multi-line TOML strings (`"""` or `'''`) are supported when editing via `wt settings`:
+
+```toml
+prepare = """
+pnpm install
+pnpm build
+"""
+```
+
 Config is per-repo at `$XDG_CONFIG_HOME/wt/<repo-slug>/wt.toml` (defaults to
 `~/.config`).
 
